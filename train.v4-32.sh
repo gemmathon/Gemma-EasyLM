@@ -1,4 +1,4 @@
-export TPU_NAME='tpu-test'
+export TPU_NAME='tpu-32'
 export TPU_USER='pj2417'
 export ZONE='us-central2-b'
 
@@ -28,27 +28,25 @@ cat > /home/$TPU_USER/Gemma-EasyLM/runner.sh << 'EOF'
 export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_enable_async_all_gather=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'
 
 python -m EasyLM.models.gemma.gemma_train \
---load_checkpoint=flax_params::/home/$TPU_USER/flax_model.msgpack \
---mesh_dim=1,2,4 \
+--load_checkpoint=trainstate_params::/home/$TPU_USER/streaming_train_state \
+--mesh_dim=1,-1,4 \
 --dtype=bf16 \
---total_steps=320000 \
+--total_steps=4417219 \
 --log_freq=64 \
---save_model_freq=16384 \
---save_milestone_freq=16384 \
+--save_model_freq=64000 \
+--save_milestone_freq=64000 \
 --train_dataset.type='huggingface' \
 --train_dataset.text_processor.fields='text' \
---train_dataset.huggingface_dataset.path='allenai/c4' \
---train_dataset.huggingface_dataset.name='ko' \
---train_dataset.huggingface_dataset.seq_length=8192 \
---train_dataset.huggingface_dataset.batch_size=2 \
---train_dataset.huggingface_dataset.streaming=True \
---optimizer.accumulate_gradient_steps=64 \
+--train_dataset.json_dataset.path='gs://gemma_train/data.jsonl' \
+--train_dataset.json_dataset.seq_length=8192 \
+--train_dataset.json_dataset.batch_size=4 \
+--optimizer.accumulate_gradient_steps=32 \
 --optimizer.type=adamw \
 --optimizer.adamw_optimizer.weight_decay=0.1 \
 --optimizer.adamw_optimizer.lr=0.00005 \
 --optimizer.adamw_optimizer.end_lr=0.000001 \
 --optimizer.adamw_optimizer.lr_warmup_steps=10000 \
---optimizer.adamw_optimizer.lr_decay_steps=320000 \
+--optimizer.adamw_optimizer.lr_decay_steps=4417219 \
 --checkpointer.save_optimizer_state=True \
 --checkpointer.float_dtype=bf16 \
 --logger.online=True \
