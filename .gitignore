@@ -131,3 +131,5 @@ dmypy.json
 launcher/
 
 gemma-checkpoint/
+gemma-ko-2b-dev/
+flax-gemma-ko-2b/

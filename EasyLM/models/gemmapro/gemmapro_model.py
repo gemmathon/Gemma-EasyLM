@@ -140,7 +140,7 @@ def create_sinusoidal_positions(num_pos, dim):
 
     emb = np.concatenate((freqs, freqs), axis=-1)
     out = np.concatenate((np.sin(emb)[:, None, :], np.cos(emb)[:, None, :]), axis=-1)
-    return jnp.array(out[:, :, :num_pos])
+    return jnp.array(out[:, :, :(dim * 2)])
 
 
 # Copied from transformers.models.llama.modeling_flax_llama.rotate_half
@@ -879,6 +879,7 @@ class FlaxGemmaForCausalLMModule(nn.Module):
     dtype: jnp.dtype = jnp.float32
 
     def setup(self):
+        # self.config.max_position_embeddings = 4
         self.model = FlaxGemmaModule(self.config, dtype=self.dtype)
         self.lm_head = nn.Dense(
             self.config.vocab_size,

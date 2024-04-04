@@ -10,6 +10,10 @@ import jax.numpy as jnp
 from jax.experimental.pjit import pjit
 from jax.sharding import PartitionSpec as PS
 from flax.training.train_state import TrainState
+from flax import traverse_util
+from flax.core import freeze, frozen_dict
+from flax.core.frozen_dict import FrozenDict
+from typing import Mapping
 
 from EasyLM.data import DatasetFactory
 from EasyLM.checkpoint import StreamingCheckpointer
@@ -109,8 +113,47 @@ def main(argv):
         get_weight_decay_mask(GemmaProConfig.get_weight_decay_exclusions()),
     )
 
+
+    def bool_grad_mask_fn(params):
+        """Create a boolean mask over parameters for filtering.
+        Returns:
+            mask (frozen_dict): `True` for non-frozen parameters, `False` for frozen parameters (i.e. the feature encoder).
+        """
+        flat_params = traverse_util.flatten_dict(params)
+        flat_mask = {path: ('20' in path or '6' in path or '13' in path) for path in flat_params}
+        mask = traverse_util.unflatten_dict(flat_mask)
+        return freeze(mask)
+    
+    def filter_params(params, mask):
+        flat_params = traverse_util.flatten_dict(params)
+        flat_mask = traverse_util.flatten_dict(mask)
+        filtered_params = {}
+        for name, value in flat_params.items():
+            if flat_mask[name]:
+                filtered_params[name] = flat_params[name]
+        return freeze(traverse_util.unflatten_dict(filtered_params))
+
+    def merge_params(params: Mapping, updates: Mapping) -> FrozenDict:
+        if isinstance(params, FrozenDict):
+            output = params.unfreeze()
+        else:
+            output = params
+
+        for name, update_value in updates.items():
+            current_value = params.get(name, None)
+            if isinstance(current_value, Mapping) and isinstance(update_value, Mapping):
+                output[name] = merge_params(current_value, update_value)
+            else:
+                output[name] = update_value
+
+        return freeze(output)
+
     def create_trainstate_from_params(params):
-        return TrainState.create(params=params, tx=optimizer, apply_fn=None)
+        train_state = TrainState.create(params=params, tx=optimizer, apply_fn=None)
+        # train_state = train_state.replace(
+        #     opt_state = optimizer.init(filter_params(params, bool_grad_mask_fn(params)).unfreeze())
+        # )
+        return train_state
 
     def init_fn(rng):
         rng_generator = JaxRNG(rng)
@@ -120,13 +163,14 @@ def main(argv):
             attention_mask=jnp.ones((4, seq_length), dtype=jnp.int32),
             rngs=rng_generator(gemma_config.rng_keys()),
         )
-        return TrainState.create(params=params, tx=optimizer, apply_fn=None)
+        return create_trainstate_from_params(params)
 
     def train_step(train_state, rng, batch):
         rng_generator = JaxRNG(rng)
         batch = with_sharding_constraint(batch, PS(("dp", "fsdp")))
-
+        
         def loss_and_accuracy(params):
+            # params = merge_params(params, differentiable_params)
             logits = model.apply(
                 params,
                 batch["input_tokens"],
@@ -136,18 +180,37 @@ def main(argv):
             return cross_entropy_loss_and_accuracy(
                 logits, batch["target_tokens"], batch["loss_masks"]
             )
+        
+        # differentiable_params = filter_params(train_state.params, bool_grad_mask_fn(train_state.params))
 
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
         (loss, accuracy), grads = grad_fn(train_state.params)
-        train_state = train_state.apply_gradients(grads=grads)
+        # print(differentiable_params)
+        # print(train_state.opt_state)
+
+        new_state = train_state.apply_gradients(grads=grads)
+        differentiable_params = filter_params(new_state.params, bool_grad_mask_fn(new_state.params))
+        
+        # print(differentiable_params)
+        params = merge_params(train_state.params, differentiable_params).unfreeze()
+        
+        # updates, opt_state = train_state.tx.update(grads, train_state.opt_state, differentiable_params)
+        
+        # differentiable_params = optax.apply_updates(differentiable_params, updates)
+        
+        # params = merge_params(train_state.params, differentiable_params)
+        new_state = new_state.replace(
+            params=params,
+        )
+
         metrics = dict(
             loss=loss,
             accuracy=accuracy,
-            learning_rate=optimizer_info["learning_rate_schedule"](train_state.step),
+            learning_rate=optimizer_info["learning_rate_schedule"](new_state.step),
             gradient_norm=global_norm(grads),
-            param_norm=global_norm(train_state.params),
+            param_norm=global_norm(new_state.params),
         )
-        return train_state, rng_generator(), metrics
+        return new_state, rng_generator(), metrics
 
     def eval_step(train_state, rng, batch):
         rng_generator = JaxRNG(rng)
