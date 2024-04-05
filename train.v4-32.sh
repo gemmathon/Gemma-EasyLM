@@ -27,11 +27,11 @@ gcloud compute tpus tpu-vm ssh $TPU_USER@$TPU_NAME --zone $ZONE --worker=all --c
 cat > /home/$TPU_USER/Gemma-EasyLM/runner.sh << 'EOF'
 export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_enable_async_all_gather=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'
 
-python -m EasyLM.models.gemma.gemma_train \
---load_checkpoint=flax_params::/home/$TPU_USER/flax_model.msgpack \
+python -m EasyLM.models.gemmapro.gemmapro_train \
+--load_checkpoint=flax_params::/home/$TPU_USER/flax_model_pro.msgpack \
 --mesh_dim=1,-1,4 \
 --dtype=bf16 \
---total_steps=80889 \
+--total_steps=404445 \
 --log_freq=1 \
 --save_model_freq=80889 \
 --save_milestone_freq=80889 \
@@ -46,8 +46,9 @@ python -m EasyLM.models.gemma.gemma_train \
 --optimizer.type=adamw \
 --optimizer.adamw_optimizer.weight_decay=0.1 \
 --optimizer.adamw_optimizer.lr=0.0002 \
---optimizer.adamw_optimizer.end_lr=0.0002 \
---optimizer.adamw_optimizer.lr_warmup_steps=240 \
+--optimizer.adamw_optimizer.end_lr=0.00001 \
+--optimizer.adamw_optimizer.lr_warmup_steps=24266 \
+--optimizer.adamw_optimizer.lr_decay_steps=242667 \
 --checkpointer.save_optimizer_state=True \
 --checkpointer.float_dtype=bf16 \
 --logger.online=True \
