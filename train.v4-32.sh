@@ -1,6 +1,8 @@
 export TPU_NAME='tpu-32'
-export TPU_USER='pj2417'
+export TPU_USER='yunjiyeong0106'
 export ZONE='us-central2-b'
+
+
 
 echo "[local] Killing TPU"
 gcloud compute tpus tpu-vm ssh $TPU_USER@$TPU_NAME \
@@ -19,7 +21,7 @@ gcloud compute tpus tpu-vm ssh $TPU_USER@$TPU_NAME \
 echo "[local] Git pull"
 gcloud compute tpus tpu-vm ssh $TPU_USER@$TPU_NAME --zone $ZONE --worker=all --command \
 "cd Gemma-EasyLM && git fetch origin && \
-git reset --hard origin/main && rm /home/$TPU_USER/Gemma-EasyLM/train.sh"
+git reset --hard origin/main && rm /home/$TPU_USER/Gemma-EasyLM/train.v4-32.sh"
 
 echo "[local] Set runner.sh"
 # Log per 128 * 50 steps, matching the gradient accumulation steps = Real 1 step
@@ -27,7 +29,7 @@ gcloud compute tpus tpu-vm ssh $TPU_USER@$TPU_NAME --zone $ZONE --worker=all --c
 cat > /home/$TPU_USER/Gemma-EasyLM/runner.sh << 'EOF'
 export LIBTPU_INIT_ARGS='--xla_jf_spmd_threshold_for_windowed_einsum_mib=0 --xla_tpu_spmd_threshold_for_allgather_cse=10000 --xla_enable_async_all_gather=true --xla_tpu_enable_latency_hiding_scheduler=true TPU_MEGACORE=MEGACORE_DENSE'
 
-python -m EasyLM.models.gemma.gemma_train \
+python -m EasyLM.models.gemmapro_24.gemmapro_train \
 --load_checkpoint=flax_params::/home/$TPU_USER/flax_model.msgpack \
 --mesh_dim=1,-1,4 \
 --dtype=bf16 \
@@ -51,8 +53,8 @@ python -m EasyLM.models.gemma.gemma_train \
 --checkpointer.save_optimizer_state=True \
 --checkpointer.float_dtype=bf16 \
 --logger.online=True \
---logger.output_dir=gs://gemma-train/gemma-checkpoint \
---logger.project='ko-gemma-pro'
+--logger.output_dir=gs://gemma-pro/gemma-checkpoint \
+--logger.project='gemma-pro'
 EOF
 chmod +x /home/$TPU_USER/Gemma-EasyLM/runner.sh"
 

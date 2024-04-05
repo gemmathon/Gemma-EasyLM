@@ -10,7 +10,7 @@ from transformers import FlaxGemmaForCausalLM
 
 _, param = StreamingCheckpointer.load_trainstate_checkpoint(load_from=f'trainstate_params::{ckpt_path}')
 
-gemma_config = GemmaConfig.from_pretrained("gemmathon/gemma-2b-pro")
+gemma_config = GemmaConfig.from_pretrained("gemmathon/gemma-2b-pro-layers24")
 # gemma_config = GemmaConfig.from_pretrained("google/gemma-2b")
 
 # EasyLM Gemma
