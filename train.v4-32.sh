@@ -55,7 +55,7 @@ python -m EasyLM.models.gemmapro_24.gemmapro_train \
 --checkpointer.float_dtype=bf16 \
 --logger.online=True \
 --logger.output_dir=gs://gemma-pro/gemma-checkpoint \
---logger.project='gemma-pro'
+--logger.project='gemmathon/gemma-2b'
 EOF
 chmod +x /home/$TPU_USER/Gemma-EasyLM/runner.sh"
 

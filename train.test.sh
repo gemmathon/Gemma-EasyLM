@@ -53,8 +53,7 @@ python -m EasyLM.models.gemma.gemma_train \
 --checkpointer.float_dtype=bf16 \
 --logger.online=True \
 --logger.output_dir=gs://gemma-train/gemma-checkpoint \
---logger.project='gemma-ko-2b-dev'
---logger.experiment_id='merged-pb-kw-nw'
+--logger.project='gemmathon/gemma-2b'
 EOF
 chmod +x /home/$TPU_USER/Gemma-EasyLM/runner.sh"
 
